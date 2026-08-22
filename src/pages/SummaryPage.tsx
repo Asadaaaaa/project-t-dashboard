@@ -29,13 +29,12 @@ export const SummaryPage: React.FC = () => {
   const [generationDate, setGenerationDate] = useState<string>(todayStr);
   const [copied, setCopied] = useState<boolean>(false);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
-  const [loadingStep, setLoadingStep] = useState<number>(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Store initial updated_at timestamp to detect background completion
-  const initialUpdatedAtRef = useRef<string | null>(null);
+  const initialUpdatedAtRef = useRef<string>('__INIT__');
   const generatingDateRef = useRef<string>(todayStr);
-  const pollCountRef = useRef<number>(0);
 
   // Query summaries with automatic background polling when generating
   const { data: summariesData, isLoading, refetch, isFetching } = useQuery<{ data: DailySummary[] }>({
@@ -50,22 +49,33 @@ export const SummaryPage: React.FC = () => {
   const summaries = summariesData?.data || [];
   const selectedSummary = summaries.find((s) => s.summary_date === selectedDate) || summaries[0];
 
-  // Monitor polling to detect when summary is generated in the background
+  // Active seconds timer while generation is in progress
+  useEffect(() => {
+    let interval: any;
+    if (isGenerating) {
+      interval = setInterval(() => {
+        setElapsedSeconds((prev) => prev + 1);
+      }, 1000);
+    } else {
+      setElapsedSeconds(0);
+    }
+    return () => clearInterval(interval);
+  }, [isGenerating]);
+
+  // Monitor polling to detect when summary is updated in the database
   useEffect(() => {
     if (!isGenerating) return;
 
-    pollCountRef.current += 1;
     const targetDate = generatingDateRef.current;
     const currentSummary = summaries.find((s) => s.summary_date === targetDate);
 
-    if (currentSummary) {
+    if (currentSummary && initialUpdatedAtRef.current !== '__INIT__') {
       const currentTs = currentSummary.updated_at || currentSummary.created_at || '';
       const initialTs = initialUpdatedAtRef.current;
 
-      // If timestamp updated or summary newly created with content
-      if (initialTs === null || currentTs !== initialTs) {
+      // When timestamp changes compared to before generation started
+      if (initialTs === '__NONE__' || (currentTs && currentTs !== initialTs)) {
         setIsGenerating(false);
-        setLoadingStep(0);
         setSelectedDate(targetDate);
         setStatusMsg({
           type: 'success',
@@ -73,40 +83,31 @@ export const SummaryPage: React.FC = () => {
         });
         queryClient.invalidateQueries({ queryKey: ['summaries'] });
         queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-        return;
       }
     }
-
-    // Dynamic step progression based on elapsed time without manual interaction
-    if (pollCountRef.current > 4 && loadingStep === 1) {
-      setLoadingStep(2);
-    }
-  }, [summariesData, isGenerating, loadingStep, queryClient]);
+  }, [summariesData, isGenerating, queryClient]);
 
   const generateMutation = useMutation({
     mutationFn: async (date: string) => {
       generatingDateRef.current = date;
-      pollCountRef.current = 0;
       setIsGenerating(true);
-      setLoadingStep(1);
+      setElapsedSeconds(0);
 
-      // Record baseline timestamp
+      // Record baseline timestamp before generate begins
       const existing = summaries.find((s) => s.summary_date === date);
-      initialUpdatedAtRef.current = existing ? (existing.updated_at || existing.created_at || '') : null;
+      initialUpdatedAtRef.current = existing ? (existing.updated_at || existing.created_at || '__EXISTS__') : '__NONE__';
 
       try {
         const resp = await api.post('/summaries/generate', { date }, { timeout: 180000 });
         return resp.data;
       } catch (e) {
-        // Even if HTTP connection drops, the backend is continuing in background
-        console.warn('Generate request in progress via background polling...', e);
+        console.warn('Generate request continuing in background...', e);
         return null;
       }
     },
     onSuccess: (data) => {
       if (data?.data?.summary) {
         setIsGenerating(false);
-        setLoadingStep(0);
         const dateGen = data.data.summary.summary_date || generationDate;
         const count = data.data.messageCount || 0;
         setStatusMsg({
@@ -119,8 +120,7 @@ export const SummaryPage: React.FC = () => {
       }
     },
     onError: () => {
-      // Keep isGenerating true to let background polling check for data completion
-      console.log('Continuing background interval polling...');
+      console.log('Background polling active...');
     }
   });
 
@@ -221,25 +221,32 @@ export const SummaryPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Dynamic Multi-Step Loading Banner with Background Auto-Polling */}
+      {/* Dynamic Multi-Step Loading Banner with Active Seconds Counter */}
       {isBusy && (
         <div className="p-4 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl text-white shadow-md flex items-center justify-between animate-pulse">
           <div className="flex items-center gap-3">
-            {loadingStep === 1 ? (
+            {elapsedSeconds < 8 ? (
               <DownloadCloud className="h-6 w-6" />
             ) : (
               <Sparkles className="h-6 w-6" />
             )}
             <div>
-              <p className="font-bold text-sm tracking-wide">
-                {loadingStep === 1
-                  ? 'Tahap 1 / 2: Sedang mengambil data chat...'
-                  : 'Tahap 2 / 2: Sedang membuat summary dengan AI Gemini...'}
+              <p className="font-bold text-sm tracking-wide flex items-center gap-2">
+                {elapsedSeconds < 8
+                  ? 'Tahap 1 / 3: Mengambil & menyinkronkan chat WhatsApp...'
+                  : elapsedSeconds < 25
+                  ? 'Tahap 2 / 3: Menganalisis percakapan dengan AI Gemini...'
+                  : 'Tahap 3 / 3: Menyusun laporan Markdown & to-do list...'}
+                <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full font-mono font-normal">
+                  {elapsedSeconds}s
+                </span>
               </p>
-              <p className="text-xs text-blue-100">
-                {loadingStep === 1
-                  ? `Menarik log percakapan WhatsApp untuk tanggal ${generationDate}`
-                  : `Menganalisis isi pesan, mengekstrak ringkasan, poin penting, dan to-do list`}
+              <p className="text-xs text-blue-100 mt-0.5">
+                {elapsedSeconds < 8
+                  ? `Menarik riwayat obrolan WhatsApp untuk tanggal ${generationDate}`
+                  : elapsedSeconds < 25
+                  ? `Menganalisis pesan, transaksi pembayaran, jadwal, dan lampiran media`
+                  : `Menyelesaikan format ringkasan dan menyimpan data...`}
               </p>
             </div>
           </div>
