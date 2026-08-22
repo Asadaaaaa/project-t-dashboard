@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -28,63 +28,111 @@ export const SummaryPage: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
   const [generationDate, setGenerationDate] = useState<string>(todayStr);
   const [copied, setCopied] = useState<boolean>(false);
-  const [loadingStep, setLoadingStep] = useState<number>(0); // 1 = fetching chat, 2 = generating summary
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [loadingStep, setLoadingStep] = useState<number>(0);
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // Store initial updated_at timestamp to detect background completion
+  const initialUpdatedAtRef = useRef<string | null>(null);
+  const generatingDateRef = useRef<string>(todayStr);
+  const pollCountRef = useRef<number>(0);
+
+  // Query summaries with automatic background polling when generating
   const { data: summariesData, isLoading, refetch, isFetching } = useQuery<{ data: DailySummary[] }>({
     queryKey: ['summaries'],
     queryFn: async () => {
       const resp = await api.get('/summaries');
       return resp.data;
-    }
+    },
+    refetchInterval: isGenerating ? 2000 : false
   });
 
   const summaries = summariesData?.data || [];
   const selectedSummary = summaries.find((s) => s.summary_date === selectedDate) || summaries[0];
 
+  // Monitor polling to detect when summary is generated in the background
+  useEffect(() => {
+    if (!isGenerating) return;
+
+    pollCountRef.current += 1;
+    const targetDate = generatingDateRef.current;
+    const currentSummary = summaries.find((s) => s.summary_date === targetDate);
+
+    if (currentSummary) {
+      const currentTs = currentSummary.updated_at || currentSummary.created_at || '';
+      const initialTs = initialUpdatedAtRef.current;
+
+      // If timestamp updated or summary newly created with content
+      if (initialTs === null || currentTs !== initialTs) {
+        setIsGenerating(false);
+        setLoadingStep(0);
+        setSelectedDate(targetDate);
+        setStatusMsg({
+          type: 'success',
+          text: `Summary untuk tanggal ${targetDate} berhasil dibuat!`
+        });
+        queryClient.invalidateQueries({ queryKey: ['summaries'] });
+        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+        return;
+      }
+    }
+
+    // Dynamic step progression based on elapsed time without manual interaction
+    if (pollCountRef.current > 4 && loadingStep === 1) {
+      setLoadingStep(2);
+    }
+  }, [summariesData, isGenerating, loadingStep, queryClient]);
+
   const generateMutation = useMutation({
     mutationFn: async (date: string) => {
-      setLoadingStep(1); // Step 1: Sedang mengambil data chat...
-      const timer = setTimeout(() => {
-        setLoadingStep(2); // Step 2: Sedang membuat summary...
-      }, 3000);
+      generatingDateRef.current = date;
+      pollCountRef.current = 0;
+      setIsGenerating(true);
+      setLoadingStep(1);
+
+      // Record baseline timestamp
+      const existing = summaries.find((s) => s.summary_date === date);
+      initialUpdatedAtRef.current = existing ? (existing.updated_at || existing.created_at || '') : null;
 
       try {
         const resp = await api.post('/summaries/generate', { date }, { timeout: 180000 });
-        clearTimeout(timer);
         return resp.data;
       } catch (e) {
-        clearTimeout(timer);
-        throw e;
+        // Even if HTTP connection drops, the backend is continuing in background
+        console.warn('Generate request in progress via background polling...', e);
+        return null;
       }
     },
     onSuccess: (data) => {
-      setLoadingStep(0);
-      const dateGen = data?.data?.summary?.summary_date || generationDate;
-      const count = data?.data?.messageCount || 0;
-      setStatusMsg({
-        type: 'success',
-        text: `Summary untuk tanggal ${dateGen} berhasil dibuat dari ${count} percakapan WhatsApp!`
-      });
-      queryClient.invalidateQueries({ queryKey: ['summaries'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-      setSelectedDate(dateGen);
+      if (data?.data?.summary) {
+        setIsGenerating(false);
+        setLoadingStep(0);
+        const dateGen = data.data.summary.summary_date || generationDate;
+        const count = data.data.messageCount || 0;
+        setStatusMsg({
+          type: 'success',
+          text: `Summary untuk tanggal ${dateGen} berhasil dibuat dari ${count} percakapan WhatsApp!`
+        });
+        queryClient.invalidateQueries({ queryKey: ['summaries'] });
+        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+        setSelectedDate(dateGen);
+      }
     },
-    onError: (err: any) => {
-      setLoadingStep(0);
-      const errMsg = err.response?.data?.message || (err.code === 'ECONNABORTED' ? 'Waktu proses habis (timeout). Silakan refresh beberapa saat lagi.' : err.message) || 'Gagal membuat summary';
-      setStatusMsg({
-        type: 'error',
-        text: errMsg
-      });
+    onError: () => {
+      // Keep isGenerating true to let background polling check for data completion
+      console.log('Continuing background interval polling...');
     }
   });
+
+  const handleStartGenerate = (date: string) => {
+    setStatusMsg(null);
+    generateMutation.mutate(date);
+  };
 
   // Helper to compile full markdown for current summary
   const getFullMarkdown = (summary: DailySummary | undefined): string => {
     if (!summary) return '';
-    
-    // If backend already returned full markdown
+
     if ((summary as any).markdown) {
       return (summary as any).markdown;
     }
@@ -146,6 +194,8 @@ export const SummaryPage: React.FC = () => {
     });
   };
 
+  const isBusy = isGenerating || generateMutation.isPending;
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       {/* Header */}
@@ -162,7 +212,7 @@ export const SummaryPage: React.FC = () => {
             variant="outline"
             size="sm"
             onClick={() => refetch()}
-            disabled={isFetching || generateMutation.isPending}
+            disabled={isFetching || isBusy}
             className="flex items-center gap-2"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
@@ -171,8 +221,8 @@ export const SummaryPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Dynamic Multi-Step Loading Banner */}
-      {generateMutation.isPending && (
+      {/* Dynamic Multi-Step Loading Banner with Background Auto-Polling */}
+      {isBusy && (
         <div className="p-4 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl text-white shadow-md flex items-center justify-between animate-pulse">
           <div className="flex items-center gap-3">
             {loadingStep === 1 ? (
@@ -247,12 +297,12 @@ export const SummaryPage: React.FC = () => {
               />
               <Button
                 size="sm"
-                onClick={() => generateMutation.mutate(generationDate)}
-                disabled={generateMutation.isPending}
+                onClick={() => handleStartGenerate(generationDate)}
+                disabled={isBusy}
                 className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 shadow-sm"
               >
                 <Sparkles className="h-3.5 w-3.5" />
-                <span>{generateMutation.isPending ? 'Memproses...' : 'Generate'}</span>
+                <span>{isBusy ? 'Memproses...' : 'Generate'}</span>
               </Button>
             </div>
           )}
@@ -309,8 +359,8 @@ export const SummaryPage: React.FC = () => {
           {canGenerate && (
             <Button
               size="sm"
-              onClick={() => generateMutation.mutate(selectedDate)}
-              disabled={generateMutation.isPending}
+              onClick={() => handleStartGenerate(selectedDate)}
+              disabled={isBusy}
               className="bg-blue-600 hover:bg-blue-700"
             >
               <Sparkles className="h-3.5 w-3.5 mr-1.5" />
