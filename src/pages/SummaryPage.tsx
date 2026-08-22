@@ -168,9 +168,9 @@ export const SummaryPage: React.FC = () => {
         <div className="p-4 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl text-white shadow-md flex items-center justify-between animate-pulse">
           <div className="flex items-center gap-3">
             {loadingStep === 1 ? (
-              <DownloadCloud className="h-6 w-6 animate-bounce" />
+              <DownloadCloud className="h-6 w-6" />
             ) : (
-              <Sparkles className="h-6 w-6 animate-spin" />
+              <Sparkles className="h-6 w-6" />
             )}
             <div>
               <p className="font-bold text-sm tracking-wide">
@@ -243,7 +243,7 @@ export const SummaryPage: React.FC = () => {
                 disabled={generateMutation.isPending}
                 className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 shadow-sm"
               >
-                <Sparkles className={`h-3.5 w-3.5 ${generateMutation.isPending ? 'animate-spin' : ''}`} />
+                <Sparkles className="h-3.5 w-3.5" />
                 <span>{generateMutation.isPending ? 'Memproses...' : 'Generate'}</span>
               </Button>
             </div>
