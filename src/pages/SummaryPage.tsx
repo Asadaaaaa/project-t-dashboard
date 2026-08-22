@@ -50,7 +50,7 @@ export const SummaryPage: React.FC = () => {
       }, 3000);
 
       try {
-        const resp = await api.post('/summaries/generate', { date });
+        const resp = await api.post('/summaries/generate', { date }, { timeout: 180000 });
         clearTimeout(timer);
         return resp.data;
       } catch (e) {
@@ -72,9 +72,10 @@ export const SummaryPage: React.FC = () => {
     },
     onError: (err: any) => {
       setLoadingStep(0);
+      const errMsg = err.response?.data?.message || (err.code === 'ECONNABORTED' ? 'Waktu proses habis (timeout). Silakan refresh beberapa saat lagi.' : err.message) || 'Gagal membuat summary';
       setStatusMsg({
         type: 'error',
-        text: err.response?.data?.message || err.message || 'Gagal membuat summary'
+        text: errMsg
       });
     }
   });
