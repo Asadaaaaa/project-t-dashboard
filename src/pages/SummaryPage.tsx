@@ -89,26 +89,22 @@ export const SummaryPage: React.FC = () => {
     }
 
     let md = `# 📅 Ringkasan Harian WhatsApp — ${summary.summary_date}\n\n`;
-    md += `## 📌 Ringkasan Umum\n${summary.summary}\n\n`;
+    md += `## 📝 Deskripsi Hari Ini\n${summary.summary}\n\n`;
+    md += `---\n\n`;
+    md += `## 📋 Rincian Aktivitas & Rekapitulasi\n\n`;
 
+    md += `### 1. ✅ Yang Sudah Dilakukan (Completed)\n`;
     if (summary.highlights && summary.highlights.length > 0) {
-      md += `## 💬 Poin Diskusi & Catatan Obrolan\n`;
       summary.highlights.forEach((h) => {
-        md += `- ${h}\n`;
+        md += `- [x] **${h}**\n`;
       });
-      md += `\n`;
+    } else {
+      md += `- Tidak ada aktivitas yang terselesaikan secara eksplisit hari ini.\n`;
     }
-
-    if (summary.decisions && summary.decisions.length > 0) {
-      md += `## 🎯 Keputusan yang Diambil\n`;
-      summary.decisions.forEach((d) => {
-        md += `- ${d}\n`;
-      });
-      md += `\n`;
-    }
+    md += `\n`;
 
     const todos = summary.todos || [];
-    md += `## ✅ Action Items & To-Do List (${todos.length})\n`;
+    md += `### 2. ⏳ Yang Harus / Belum Dilakukan (Action Items & To-Do List) (${todos.length})\n`;
     if (todos.length > 0) {
       todos.forEach((t) => {
         const isDone = t.status === 'completed';
@@ -122,8 +118,19 @@ export const SummaryPage: React.FC = () => {
         }
       });
     } else {
-      md += `*Tidak ada action items spesifik untuk hari ini.*\n`;
+      md += `- Tidak ada to-do list tertunda.\n`;
     }
+    md += `\n`;
+
+    md += `### 3. 📅 Jadwal, Agenda & Rencana Kedepan\n`;
+    if (summary.decisions && summary.decisions.length > 0) {
+      summary.decisions.forEach((d) => {
+        md += `- **Agenda/Keputusan**: ${d}\n`;
+      });
+    } else {
+      md += `- Tidak ada jadwal agenda khusus yang tercatat.\n`;
+    }
+    md += `\n`;
 
     return md;
   };
