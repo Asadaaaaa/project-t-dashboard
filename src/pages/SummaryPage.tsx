@@ -152,16 +152,24 @@ export const SummaryPage: React.FC = () => {
     }
     md += `\n`;
 
-    const todos = summary.todos || [];
-    md += `### 2. ⏳ Yang Harus / Belum Dilakukan (Action Items & To-Do List) (${todos.length})\n`;
-    if (todos.length > 0) {
-      todos.forEach((t) => {
+    const priorityWeight: Record<string, number> = { high: 3, medium: 2, low: 1 };
+    const sortedTodos = [...(summary.todos || [])].sort((a, b) => {
+      const pA = priorityWeight[(a.priority || 'medium').toLowerCase()] || 0;
+      const pB = priorityWeight[(b.priority || 'medium').toLowerCase()] || 0;
+      return pB - pA;
+    });
+
+    md += `### 2. ⏳ Yang Harus / Belum Dilakukan (Action Items & To-Do List) (${sortedTodos.length})\n`;
+    md += `*(Diurutkan berdasarkan prioritas: HIGH ➡️ MEDIUM ➡️ LOW)*\n`;
+    if (sortedTodos.length > 0) {
+      sortedTodos.forEach((t) => {
         const isDone = t.status === 'completed';
         const checkbox = isDone ? '[x]' : '[ ]';
         const priorityTag = (t.priority || 'medium').toUpperCase();
+        const groupTag = (t as any).source_chat ? ` | 👥 Grup/Chat: ${(t as any).source_chat}` : '';
         const assigneeTag = t.assignee ? ` | 👤 @${t.assignee}` : '';
         const deadlineTag = t.deadline ? ` | ⏰ Deadline: ${formatDate(t.deadline)}` : '';
-        md += `- ${checkbox} **${t.title}** [${priorityTag}]${assigneeTag}${deadlineTag}\n`;
+        md += `- ${checkbox} **${t.title}** [${priorityTag}${groupTag}${assigneeTag}${deadlineTag}]\n`;
         if (t.description) {
           md += `  > ${t.description}\n`;
         }
