@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   QrCode,
   Sparkles,
+  Receipt,
   Users,
   Shield,
   Key,
@@ -60,6 +61,12 @@ export const Sidebar: React.FC = () => {
       to: '/dashboard/whatsapp/summary',
       icon: Sparkles,
       show: isUserAdmin || hasPermission('summary.view')
+    },
+    {
+      label: 'Reimbursement',
+      to: '/dashboard/whatsapp/reimbursement',
+      icon: Receipt,
+      show: true
     }
   ];
 

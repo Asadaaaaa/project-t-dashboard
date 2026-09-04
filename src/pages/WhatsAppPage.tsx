@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
+import { getSocket, useSocketStatus } from '../lib/socket';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -13,22 +14,24 @@ import {
   Calendar,
   CheckCircle,
   Play,
-  Square
+  Square,
+  Zap
 } from 'lucide-react';
 import { formatDateTime } from '../lib/utils';
 
 export const WhatsAppPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const isSocketConnected = useSocketStatus();
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
-  // Status query (polling every 3s when connecting)
+  // Initial Status Query (No Polling needed, powered by WebSocket)
   const { data: statusData, isLoading: isStatusLoading } = useQuery({
     queryKey: ['whatsapp-status'],
     queryFn: async () => {
       const resp = await api.get('/whatsapp/status');
       return resp.data.data;
     },
-    refetchInterval: 3000
+    staleTime: Infinity
   });
 
   const currentStatus = statusData?.details?.status || statusData?.session?.status || 'disconnected';
@@ -37,16 +40,76 @@ export const WhatsAppPage: React.FC = () => {
   const phoneNumber = statusData?.details?.phoneNumber || statusData?.session?.phone_number;
   const pushname = statusData?.details?.pushname;
 
-  // QR query (polling every 3s when connecting / not connected)
-  const { data: qrData, isLoading: isQrLoading } = useQuery({
+  // Initial QR Query (No Polling needed, powered by WebSocket)
+  const { data: qrData } = useQuery({
     queryKey: ['whatsapp-qr'],
     queryFn: async () => {
       const resp = await api.get('/whatsapp/qr');
       return resp.data.data;
     },
-    refetchInterval: 3000,
-    enabled: isConnecting && !isConnected
+    enabled: isConnecting && !isConnected,
+    staleTime: Infinity
   });
+
+  // Listen to real-time WebSocket events from Controller
+  useEffect(() => {
+    const socket = getSocket();
+
+    const handleStatusUpdated = (payload: any) => {
+      queryClient.setQueryData(['whatsapp-status'], (old: any) => {
+        return {
+          ...old,
+          session: {
+            ...(old?.session || {}),
+            status: payload.status,
+            phone_number: payload.phoneNumber || old?.session?.phone_number
+          },
+          details: {
+            ...(old?.details || {}),
+            status: payload.status,
+            phoneNumber: payload.phoneNumber || old?.details?.phoneNumber
+          }
+        };
+      });
+
+      if (payload.status === 'connected') {
+        queryClient.setQueryData(['whatsapp-qr'], null);
+      }
+
+      // Re-sync full data from DB in background
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-status'] });
+    };
+
+    const handleQrUpdated = (payload: any) => {
+      queryClient.setQueryData(['whatsapp-qr'], {
+        qr: payload.qr,
+        qrDataUrl: payload.qrDataUrl,
+        status: payload.status
+      });
+      queryClient.setQueryData(['whatsapp-status'], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          session: {
+            ...(old?.session || {}),
+            status: payload.qr ? 'connecting' : (old?.session?.status || 'disconnected')
+          },
+          details: {
+            ...(old?.details || {}),
+            status: payload.qr ? 'connecting' : (old?.details?.status || 'disconnected')
+          }
+        };
+      });
+    };
+
+    socket.on('whatsapp:status_updated', handleStatusUpdated);
+    socket.on('whatsapp:qr_updated', handleQrUpdated);
+
+    return () => {
+      socket.off('whatsapp:status_updated', handleStatusUpdated);
+      socket.off('whatsapp:qr_updated', handleQrUpdated);
+    };
+  }, [queryClient]);
 
   const connectMutation = useMutation({
     mutationFn: async () => {
@@ -54,7 +117,7 @@ export const WhatsAppPage: React.FC = () => {
       return resp.data;
     },
     onSuccess: () => {
-      setActionMessage('Connecting initiated... Silakan scan QR code di samping.');
+      setActionMessage('Connecting initiated... Menunggu QR Code...');
       queryClient.invalidateQueries({ queryKey: ['whatsapp-status'] });
       queryClient.invalidateQueries({ queryKey: ['whatsapp-qr'] });
     },
@@ -70,6 +133,7 @@ export const WhatsAppPage: React.FC = () => {
     },
     onSuccess: () => {
       setActionMessage('WhatsApp disconnected dan session dibersihkan.');
+      queryClient.setQueryData(['whatsapp-qr'], null);
       queryClient.invalidateQueries({ queryKey: ['whatsapp-status'] });
       queryClient.invalidateQueries({ queryKey: ['whatsapp-qr'] });
     }
@@ -80,11 +144,26 @@ export const WhatsAppPage: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">WhatsApp Connection</h1>
-        <p className="text-sm text-slate-500">
-          Kelola koneksi WhatsApp Web pribadi Anda untuk pemrosesan ringkasan AI harian
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl font-bold text-slate-900">WhatsApp Connection</h1>
+            {isSocketConnected ? (
+              <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs flex items-center gap-1">
+                <Zap className="h-3 w-3 text-emerald-500 fill-emerald-500" />
+                <span>Live Realtime</span>
+              </Badge>
+            ) : (
+              <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-xs flex items-center gap-1">
+                <RefreshCw className="h-3 w-3 animate-spin text-amber-500" />
+                <span>Connecting Socket...</span>
+              </Badge>
+            )}
+          </div>
+          <p className="text-sm text-slate-500 mt-1">
+            Kelola koneksi WhatsApp Web pribadi Anda untuk pemrosesan ringkasan AI harian
+          </p>
+        </div>
       </div>
 
       {actionMessage && (

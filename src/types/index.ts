@@ -98,3 +98,54 @@ export interface DashboardStats {
   completedTodos: number;
   latestSummary?: DailySummary | null;
 }
+
+export interface ReimbursementItem {
+  name: string;
+  qty?: number;
+  price?: number;
+  total?: number;
+}
+
+export interface ReimbursementAnomaly {
+  type: string;
+  description: string;
+  severity: 'low' | 'medium' | 'high';
+}
+
+export interface WhatsappReimbursement {
+  id: number;
+  whatsapp_message_id: string;
+  quoted_message_id?: string | null;
+  chat_id?: string | null;
+  chat_name?: string | null;
+  sender_phone?: string | null;
+  sender_name?: string | null;
+  reimburse_image_path?: string | null;
+  receipt_image_path?: string | null;
+  reimburse_amount: number | string;
+  receipt_amount: number | string;
+  difference_amount: number | string;
+  difference_status: 'MATCH' | 'OVERPAID' | 'UNDERPAID' | 'UNKNOWN';
+  merchant_name?: string | null;
+  receipt_date?: string | null;
+  reimburse_date?: string | null;
+  items_breakdown?: ReimbursementItem[] | null;
+  anomalies?: (ReimbursementAnomaly | string)[] | null;
+  ai_notes?: string | null;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'FLAGGED';
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface ReimbursementMetrics {
+  totalClaims: number;
+  totalReimburseAmount: number;
+  totalReceiptAmount: number;
+  totalDifference: number;
+  anomaliesCount: number;
+  pendingCount: number;
+  approvedCount: number;
+  flaggedCount: number;
+  rejectedCount: number;
+}
+
