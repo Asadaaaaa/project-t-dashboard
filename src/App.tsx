@@ -13,6 +13,7 @@ import { UsersPage } from './pages/UsersPage';
 import { RolesPage } from './pages/RolesPage';
 import { PermissionsPage } from './pages/PermissionsPage';
 import { ReimbursementPage } from './pages/ReimbursementPage';
+import { ConfigPage } from './pages/ConfigPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -38,6 +39,7 @@ export const App: React.FC = () => {
                 <Route path="/dashboard/whatsapp" element={<WhatsAppPage />} />
                 <Route path="/dashboard/whatsapp/summary" element={<SummaryPage />} />
                 <Route path="/dashboard/whatsapp/reimbursement" element={<ReimbursementPage />} />
+                <Route path="/dashboard/config" element={<ConfigPage />} />
                 
                 {/* Legacy redirect */}
                 <Route path="/dashboard/whatsapp/chats" element={<Navigate to="/dashboard/whatsapp/summary" replace />} />

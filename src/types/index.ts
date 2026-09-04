@@ -149,3 +149,18 @@ export interface ReimbursementMetrics {
   rejectedCount: number;
 }
 
+export interface AutoSummaryConfig {
+  id?: number | null;
+  user_id?: number | null;
+  is_enabled: boolean;
+  send_time: string;
+  target_chat_id: string | null;
+  target_chat_name: string | null;
+  target_chat_type: 'group' | 'contact';
+  last_sent_date?: string | null;
+  last_sent_at?: string | null;
+  last_sent_status?: 'success' | 'failed' | null;
+  last_error_message?: string | null;
+}
+
+

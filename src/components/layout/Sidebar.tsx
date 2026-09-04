@@ -11,7 +11,8 @@ import {
   Key,
   LogOut,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Sliders
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -66,6 +67,12 @@ export const Sidebar: React.FC = () => {
       label: 'Reimbursement',
       to: '/dashboard/whatsapp/reimbursement',
       icon: Receipt,
+      show: true
+    },
+    {
+      label: 'Configuration',
+      to: '/dashboard/config',
+      icon: Sliders,
       show: true
     }
   ];
