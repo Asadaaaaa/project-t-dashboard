@@ -163,4 +163,17 @@ export interface AutoSummaryConfig {
   last_error_message?: string | null;
 }
 
+export interface ContactException {
+  id: number;
+  user_id?: number | null;
+  whatsapp_chat_id: string;
+  contact_name: string | null;
+  phone_number: string | null;
+  chat_type: 'contact' | 'group';
+  reason?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+
 
