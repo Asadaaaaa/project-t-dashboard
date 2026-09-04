@@ -365,7 +365,7 @@ export const ReimbursementPage: React.FC = () => {
               <tr>
                 <th className="py-3.5 px-4">Nota & Bukti</th>
                 <th className="py-3.5 px-4">Toko / Merchant</th>
-                <th className="py-3.5 px-4">Pengirim & Chat</th>
+                <th className="py-3.5 px-4">Pemohon & Chat</th>
                 <th className="py-3.5 px-4 text-right">Klaim Transfer</th>
                 <th className="py-3.5 px-4 text-right">Total Nota</th>
                 <th className="py-3.5 px-4 text-center">Selisih</th>
@@ -595,7 +595,7 @@ export const ReimbursementPage: React.FC = () => {
                     Rincian Verifikasi Reimbursement #{selectedItem.id}
                   </h3>
                   <p className="text-xs text-slate-500">
-                    {selectedItem.chat_name} &bull; {selectedItem.sender_name ? `${selectedItem.sender_name}${selectedItem.sender_phone && selectedItem.sender_phone !== selectedItem.sender_name ? ` (+${selectedItem.sender_phone})` : ''}` : (selectedItem.sender_phone ? `+${selectedItem.sender_phone}` : 'WhatsApp User')}
+                    {selectedItem.chat_name} &bull; Pemohon: <span className="font-semibold text-slate-700">{selectedItem.sender_name ? `${selectedItem.sender_name}${selectedItem.sender_phone && selectedItem.sender_phone !== selectedItem.sender_name ? ` (+${selectedItem.sender_phone})` : ''}` : (selectedItem.sender_phone ? `+${selectedItem.sender_phone}` : 'Pemohon')}</span>
                   </p>
                 </div>
               </div>
