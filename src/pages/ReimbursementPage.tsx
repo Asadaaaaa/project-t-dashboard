@@ -29,7 +29,8 @@ import {
   Maximize2,
   ExternalLink,
   ShieldAlert,
-  Check
+  Check,
+  User
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -480,11 +481,21 @@ export const ReimbursementPage: React.FC = () => {
 
                       {/* Sender & Chat */}
                       <td className="py-3.5 px-4">
-                        <div className="font-medium text-slate-800">
-                          {item.sender_name || item.sender_phone || 'WhatsApp User'}
+                        <div className="font-semibold text-slate-900 flex items-center gap-1.5">
+                          <User className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+                          <span className="truncate max-w-[170px]" title={item.sender_name || item.sender_phone || 'WhatsApp User'}>
+                            {item.sender_name || item.sender_phone || 'WhatsApp User'}
+                          </span>
                         </div>
-                        <div className="text-xs text-slate-500 truncate max-w-[180px]">
-                          {item.chat_name || item.chat_id || 'Chat WhatsApp'}
+                        <div className="text-xs text-slate-500 mt-0.5 flex flex-col gap-0.5">
+                          {item.sender_phone && item.sender_name && item.sender_phone !== item.sender_name && (
+                            <span className="text-[11px] text-slate-400 font-mono">
+                              +{item.sender_phone}
+                            </span>
+                          )}
+                          <span className="truncate max-w-[170px] text-slate-500" title={item.chat_name || item.chat_id || 'Chat WhatsApp'}>
+                            {item.chat_name || item.chat_id || 'Chat WhatsApp'}
+                          </span>
                         </div>
                       </td>
 
@@ -584,7 +595,7 @@ export const ReimbursementPage: React.FC = () => {
                     Rincian Verifikasi Reimbursement #{selectedItem.id}
                   </h3>
                   <p className="text-xs text-slate-500">
-                    {selectedItem.chat_name} &bull; {selectedItem.sender_name || selectedItem.sender_phone}
+                    {selectedItem.chat_name} &bull; {selectedItem.sender_name ? `${selectedItem.sender_name}${selectedItem.sender_phone && selectedItem.sender_phone !== selectedItem.sender_name ? ` (+${selectedItem.sender_phone})` : ''}` : (selectedItem.sender_phone ? `+${selectedItem.sender_phone}` : 'WhatsApp User')}
                   </p>
                 </div>
               </div>
